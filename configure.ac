@@ -71,6 +71,10 @@ AC_ARG_ENABLE(lastfm, AS_HELP_STRING([--enable-lastfm], [enable LastFM support (
                       use_lastfm=true;
                       CPPFLAGS="${CPPFLAGS} -DLASTFM")
 
+AC_ARG_ENABLE(mpd, AS_HELP_STRING([--enable-mpd], [enable MPD client protocol support (default=no)]),
+                      use_mpd=true;
+                      CPPFLAGS="${CPPFLAGS} -DMPD")
+
 case "$host" in
 	*-*-linux-*)
 		use_alsa=true
@@ -82,6 +86,10 @@ case "$host" in
 		;;
 esac
 
+AC_ARG_WITH(ffmpeg, AS_HELP_STRING([--with-ffmpeg=VERS], [use specific ffmpeg/libav version]),
+                  AS_IF([test "x$with_ffmpeg" != "x"],[use_ffmpeg_suffix=$with_ffmpeg]);
+                  )
+
 AC_ARG_WITH(oss4, AS_HELP_STRING([--with-oss4], [use OSS4 (default Linux=no, FreeBSD=yes)]),
                   AS_IF([test "x$with_oss4" = "xyes"],[use_oss4=true],[use_oss4=false]);
                   )
@@ -90,18 +98,14 @@ AC_ARG_WITH(alsa, AS_HELP_STRING([--with-alsa], [use ALSA (default Linux=yes, Fr
                   AS_IF([test "x$with_alsa" = "xyes"],[use_alsa=true],[use_alsa=false]);
                   )
 
-AC_ARG_ENABLE(mpd, AS_HELP_STRING([--enable-mpd], [enable MPD client protocol support (default=no)]),
-                      use_mpd=true;
-                      CPPFLAGS="${CPPFLAGS} -DMPD")
-
 AM_CONDITIONAL(COND_FLAC, test x$use_flac = xtrue)
 AM_CONDITIONAL(COND_MUSEPACK, test x$use_musepack = xtrue)
 AM_CONDITIONAL(COND_ITUNES, test x$use_itunes = xtrue)
 AM_CONDITIONAL(COND_SPOTIFY, test x$use_spotify = xtrue)
 AM_CONDITIONAL(COND_LASTFM, test x$use_lastfm = xtrue)
+AM_CONDITIONAL(COND_MPD, test x$use_mpd = xtrue)
 AM_CONDITIONAL(COND_OSS4, test x$use_oss4 = xtrue)
 AM_CONDITIONAL(COND_ALSA, test x$use_alsa = xtrue)
-AM_CONDITIONAL(COND_MPD, test x$use_mpd = xtrue)
 
 dnl Checks for libraries.
 gl_LIBUNISTRING
@@ -135,21 +139,23 @@ AC_RUN_IFELSE(
 AC_LANG_POP([C])
 LIBS="$save_LIBS"
 
-PKG_CHECK_EXISTS([ libavcodec >= 54.35 ],
-	[PKG_CHECK_EXISTS([ libswresample ],
-		libxxresample=libswresample;
-	,
-		libxxresample=libavresample;
-	)]
+libavc=libavcodec$use_ffmpeg_suffix
+libavf=libavformat$use_ffmpeg_suffix
+libavu=libavutil$use_ffmpeg_suffix
+libavr=libavresample$use_ffmpeg_suffix
+libsws=libswscale$use_ffmpeg_suffix
+libswr=libswresample$use_ffmpeg_suffix
+PKG_CHECK_EXISTS([ $libavc >= 54.35 ],
+	[ PKG_CHECK_EXISTS([ $libswr ],
+		[ AC_DEFINE(HAVE_LIBSWRESAMPLE, 1, [Define to 1 if you have ffmpeg's libswresample]) libav_pkgnames="$libavc $libavf $libsws $libavu $libswr" ],
+		[ PKG_CHECK_EXISTS([ $libavr ],
+			[ AC_DEFINE(HAVE_LIBAVRESAMPLE, 1, [Define to 1 if you have libav's libavresample]) libav_pkgnames="$libavc $libavf $libsws $libavu $libavr" ],
+			[ AC_MSG_ERROR([could find neither $libswr nor $libavr]) ]
+		) ]
+	) ],
+	[ libav_pkgnames="$libavc $libavf $libsws $libavu" ]
 )
-
-if test x$libxxresample = xlibswresample; then
-	AC_DEFINE(HAVE_LIBSWRESAMPLE, 1, [Define to 1 if you have ffmpeg's libswresample])
-elif test x$libxxresample = xlibavresample; then
-	AC_DEFINE(HAVE_LIBAVRESAMPLE, 1, [Define to 1 if you have libav's libavresample])
-fi
-
-PKG_CHECK_MODULES(LIBAV, [ libavformat libavcodec libswscale libavutil $libxxresample ])
+PKG_CHECK_MODULES(LIBAV, [ $libav_pkgnames ])
 
 save_LIBS="$LIBS"
 AC_CHECK_LIB([avcodec], [avcodec_find_best_pix_fmt_of_list],
