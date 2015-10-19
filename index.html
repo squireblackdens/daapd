@@ -81,7 +81,8 @@ SoundBridge devices. See <a href="http://www.roku.com">http://www.roku.com</a>.<
 <h2>
 <a id="getting-started" class="anchor" href="#getting-started" aria-hidden="true"><span class="octicon octicon-link"></span></a>Getting started</h2>
 
-<p>After installation (see <a href="INSTALL">INSTALL</a>) do the following:</p>
+<p>After installation (see <a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a>)
+do the following:</p>
 
 <ol>
 <li>Edit the configuration file (usually <code>/etc/forked-daapd.conf</code>) to suit your
@@ -453,23 +454,22 @@ option. By default, metadata from our parsers is preferred over what's in
 the iTunes DB; use itunes_overrides = true if you prefer iTunes' metadata.</p>
 
 <p>forked-daapd has support for smart playlists. How to create a smart playlist is
-documented in <a href="README_SMARTPL.md">README_SMARTPL.md</a>.</p>
+documented in
+<a href="https://github.com/ejurgensen/forked-daapd/blob/master/README_SMARTPL.md">README_SMARTPL.md</a>.</p>
 
 <h2>
 <a id="artwork" class="anchor" href="#artwork" aria-hidden="true"><span class="octicon octicon-link"></span></a>Artwork</h2>
 
-<p>forked-daapd has support for artwork.</p>
+<p>forked-daapd has support for PNG and JPEG artwork which is either:</p>
 
-<p>Embedded artwork is only supported if your version of forked-daapd was built
-with libav 9+ or ffmpeg 0.11+.</p>
+<ul>
+<li>embedded in the media files</li>
+<li>placed as separate image files in the library</li>
+<li>made available online by the radio station</li>
+</ul>
 
-<p>Your artwork must be in PNG or JPEG format, dimensions do not matter;
-forked-daapd scales down (never up) the artwork on-the-fly to match the
-constraints given by the client. Note, however, that the bigger the picture,
-the more time and resources it takes to perform the scaling operation.</p>
-
-<p>The naming convention for album and artist artwork (group artwork) is as 
-follows:</p>
+<p>For media in your library, forked-daapd will try to locate album and artist
+artwork (group artwork) by the following procedure:</p>
 
 <ul>
 <li>if a file {artwork,cover,Folder}.{png,jpg} is found in one of the directories
@@ -482,11 +482,10 @@ artwork. The first file found is used, ordering is not guaranteed;</li>
 with an embedded artwork is used. Here again, ordering is not guaranteed.</li>
 </ul>
 
-<p>Artwork for individual songs is not supported, artwork for individual songs is 
-found by resolving to the group artwork.</p>
-
 <p>{artwork,cover,Folder} are the default, you can add other base names in the
-configuration file.</p>
+configuration file. Here you can also enable/disable support for individual
+file artwork (instead of using the same artwork for all tracks in an entire
+album).</p>
 
 <p>You can use symlinks for the artwork files; the artwork is not scanned/indexed.</p>
 
@@ -599,9 +598,10 @@ curl "http://localhost:3689/logout?session-id=50"
 <a id="spotify" class="anchor" href="#spotify" aria-hidden="true"><span class="octicon octicon-link"></span></a>Spotify</h2>
 
 <p>forked-daapd has <em>some</em> support for Spotify. It must be compiled with the
-<code>--enable-spotify option</code> (see <a href="INSTALL">INSTALL</a>). You must have also have
-libspotify installed, otherwise the Spotify integration will not be available.
-You can get libspotify here:</p>
+<code>--enable-spotify option</code> (see
+<a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a>).
+You must have also have libspotify installed, otherwise the Spotify integration
+will not be available. You can get libspotify here:</p>
 
 <ul>
 <li>Original (binary) tar.gz, see <a href="https://developer.spotify.com">https://developer.spotify.com</a>
@@ -640,7 +640,8 @@ to iTunes.</p>
 <h2>
 <a id="lastfm" class="anchor" href="#lastfm" aria-hidden="true"><span class="octicon octicon-link"></span></a>LastFM</h2>
 
-<p>If forked-daapd was built with LastFM scrobbling enabled (see the <a href="INSTALL">INSTALL</a> file)
+<p>If forked-daapd was built with LastFM scrobbling enabled (see the
+<a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a> file)
 you can have it scrobble the music you listen to. To set up scrobbling you must
 create a text file with the file name ending ".lastfm". The file must have two
 lines: The first is your LastFM user name, and the second is your password. Move
@@ -658,21 +659,16 @@ library.</p>
 <a id="mpd-clients" class="anchor" href="#mpd-clients" aria-hidden="true"><span class="octicon octicon-link"></span></a>MPD clients</h2>
 
 <p>If forked-daapd was build with support for the <a href="http://musicpd.org/">Music Player Deamon</a> 
-protocol (see the <a href="INSTALL">INSTALL</a> file) you can - to some extent - use clients for MPD 
-to control forked-daapd. 
-By default forked-daapd listens on port 6600 for MPD clients. You can change this by
-adding a section "mpd" to the forked-daapd.conf file:</p>
-
-<pre><code># MPD configuration (only have effect if MPD enabled - see README/INSTALL)
-mpd {
-    port = 8800
-}
-</code></pre>
+protocol (see the <a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a>
+file) you can - to some extent - use clients for MPD to control forked-daapd. 
+By default forked-daapd listens on port 6600 for MPD clients. You can change
+this in the configuration file.</p>
 
 <p>Currently only a subset of the commands offered by MPD (see <a href="http://www.musicpd.org/doc/protocol/">MPD protocol documentation</a>) 
 are supported by forked-daapd.</p>
 
-<p>Due to some differences between forked-daapd and MPD not all commands will act the same way they would running MPD:</p>
+<p>Due to some differences between forked-daapd and MPD not all commands will act
+the same way they would running MPD:</p>
 
 <ul>
 <li>consume, crossfade, mixrampdb, mixrampdelay and replaygain will have no effect</li>
