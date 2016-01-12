@@ -851,178 +851,17 @@ close_output(struct encode_ctx *ctx)
   avformat_free_context(ctx->ofmt_ctx);
 }
 
-#ifdef HAVE_LIBAV_GRAPH_PARSE_PTR
-static int
-open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecContext *enc_ctx, const char *filter_spec)
-{
-  AVFilter *buffersrc = NULL;
-  AVFilter *buffersink = NULL;
-  AVFilterContext *buffersrc_ctx = NULL;
-  AVFilterContext *buffersink_ctx = NULL;
-  AVFilterInOut *outputs = avfilter_inout_alloc();
-  AVFilterInOut *inputs  = avfilter_inout_alloc();
-  AVFilterGraph *filter_graph = avfilter_graph_alloc();
-  char args[512];
-  int ret;
-
-  if (!outputs || !inputs || !filter_graph)
-    {
-      DPRINTF(E_LOG, L_XCODE, "Out of memory for filter_graph, input or output\n");
-      goto out_fail;
-    }
-
-  if (dec_ctx->codec_type == AVMEDIA_TYPE_VIDEO)
-    {
-      buffersrc = avfilter_get_by_name("buffer");
-      buffersink = avfilter_get_by_name("buffersink");
-      if (!buffersrc || !buffersink)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Filtering source or sink element not found\n");
-	  goto out_fail;
-	}
-
-      snprintf(args, sizeof(args),
-               "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-               dec_ctx->width, dec_ctx->height, dec_ctx->pix_fmt,
-               dec_ctx->time_base.num, dec_ctx->time_base.den,
-               dec_ctx->sample_aspect_ratio.num,
-               dec_ctx->sample_aspect_ratio.den);
-
-      ret = avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in", args, NULL, filter_graph);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot create buffer source\n");
-	  goto out_fail;
-	}
-
-      ret = avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out", NULL, NULL, filter_graph);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot create buffer sink\n");
-	  goto out_fail;
-	}
-
-      ret = av_opt_set_bin(buffersink_ctx, "pix_fmts", (uint8_t*)&enc_ctx->pix_fmt, sizeof(enc_ctx->pix_fmt), AV_OPT_SEARCH_CHILDREN);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot set output pixel format\n");
-	  goto out_fail;
-	}
-    }
-  else if (dec_ctx->codec_type == AVMEDIA_TYPE_AUDIO)
-    {
-      buffersrc = avfilter_get_by_name("abuffer");
-      buffersink = avfilter_get_by_name("abuffersink");
-      if (!buffersrc || !buffersink)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Filtering source or sink element not found\n");
-	  ret = AVERROR_UNKNOWN;
-	  goto out_fail;
-	}
-
-      if (!dec_ctx->channel_layout)
-	dec_ctx->channel_layout = av_get_default_channel_layout(dec_ctx->channels);
-
-      snprintf(args, sizeof(args),
-               "time_base=%d/%d:sample_rate=%d:sample_fmt=%s:channel_layout=0x%"PRIx64,
-               dec_ctx->time_base.num, dec_ctx->time_base.den, dec_ctx->sample_rate,
-               av_get_sample_fmt_name(dec_ctx->sample_fmt),
-               dec_ctx->channel_layout);
-
-      ret = avfilter_graph_create_filter(&buffersrc_ctx, buffersrc, "in", args, NULL, filter_graph);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot create audio buffer source\n");
-	  goto out_fail;
-	}
-
-      ret = avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out", NULL, NULL, filter_graph);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot create audio buffer sink\n");
-	  goto out_fail;
-	}
-
-      ret = av_opt_set_bin(buffersink_ctx, "sample_fmts",
-                           (uint8_t*)&enc_ctx->sample_fmt, sizeof(enc_ctx->sample_fmt), AV_OPT_SEARCH_CHILDREN);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot set output sample format\n");
-	  goto out_fail;
-	}
-
-      ret = av_opt_set_bin(buffersink_ctx, "channel_layouts",
-                           (uint8_t*)&enc_ctx->channel_layout, sizeof(enc_ctx->channel_layout), AV_OPT_SEARCH_CHILDREN);
-      if (ret < 0)
-	{
-	  DPRINTF(E_LOG, L_XCODE, "Cannot set output channel layout\n");
-	  goto out_fail;
-	}
-
-      ret = av_opt_set_bin(buffersink_ctx, "sample_rates",
-                           (uint8_t*)&enc_ctx->sample_rate, sizeof(enc_ctx->sample_rate), AV_OPT_SEARCH_CHILDREN);
-      if (ret < 0)
-	{
-          DPRINTF(E_LOG, L_XCODE, "Cannot set output sample rate\n");
-	  goto out_fail;
-	}
-    }
-  else
-    {
-      DPRINTF(E_LOG, L_XCODE, "Bug! Unknown type passed to filter graph init\n");
-      goto out_fail;
-    }
-
-  /* Endpoints for the filter graph. */
-  outputs->name       = av_strdup("in");
-  outputs->filter_ctx = buffersrc_ctx;
-  outputs->pad_idx    = 0;
-  outputs->next       = NULL;
-  inputs->name       = av_strdup("out");
-  inputs->filter_ctx = buffersink_ctx;
-  inputs->pad_idx    = 0;
-  inputs->next       = NULL;
-  if (!outputs->name || !inputs->name)
-    {
-      DPRINTF(E_LOG, L_XCODE, "Out of memory for outputs/inputs\n");
-      goto out_fail;
-    }
-
-  ret = avfilter_graph_parse_ptr(filter_graph, filter_spec, &inputs, &outputs, NULL);
-  if (ret < 0)
-    goto out_fail;
-
-  ret = avfilter_graph_config(filter_graph, NULL);
-  if (ret < 0)
-    goto out_fail;
-
-  /* Fill filtering context */
-  filter_ctx->buffersrc_ctx = buffersrc_ctx;
-  filter_ctx->buffersink_ctx = buffersink_ctx;
-  filter_ctx->filter_graph = filter_graph;
-
-  avfilter_inout_free(&inputs);
-  avfilter_inout_free(&outputs);
-
-  return 0;
-
- out_fail:
-  avfilter_graph_free(&filter_graph);
-  avfilter_inout_free(&inputs);
-  avfilter_inout_free(&outputs);
-
-  return -1;
-}
-#else
 static int
 open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecContext *enc_ctx, const char *filter_spec)
 {
 
   AVFilter *buffersrc = NULL;
   AVFilter *format = NULL;
+  AVFilter *volume = NULL;
   AVFilter *buffersink = NULL;
   AVFilterContext *buffersrc_ctx = NULL;
   AVFilterContext *format_ctx = NULL;
+  AVFilterContext *volume_ctx = NULL;
   AVFilterContext *buffersink_ctx = NULL;
   AVFilterGraph *filter_graph = avfilter_graph_alloc();
   char args[512];
@@ -1081,10 +920,11 @@ open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecConte
     {
       buffersrc = avfilter_get_by_name("abuffer");
       format = avfilter_get_by_name("aformat");
+      volume = avfilter_get_by_name("volume");
       buffersink = avfilter_get_by_name("abuffersink");
-      if (!buffersrc || !format || !buffersink)
+      if (!buffersrc || !format || !volume || !buffersink)
 	{
-	  DPRINTF(E_LOG, L_XCODE, "Filtering source, format or sink element not found\n");
+	  DPRINTF(E_LOG, L_XCODE, "Filtering source, format, volume or sink element not found\n");
 	  ret = AVERROR_UNKNOWN;
 	  goto out_fail;
 	}
@@ -1117,6 +957,16 @@ open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecConte
 	  goto out_fail;
 	}
 
+      snprintf(args, sizeof(args),
+               "replaygain=album");
+
+      ret = avfilter_graph_create_filter(&volume_ctx, volume, "volume", args, NULL, filter_graph);
+      if (ret < 0)
+	{
+	  DPRINTF(E_LOG, L_XCODE, "Cannot create audio volume filter\n");
+	  goto out_fail;
+	}
+
       ret = avfilter_graph_create_filter(&buffersink_ctx, buffersink, "out", NULL, NULL, filter_graph);
       if (ret < 0)
 	{
@@ -1130,7 +980,9 @@ open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecConte
       goto out_fail;
     }
 
-  ret = avfilter_link(buffersrc_ctx, 0, format_ctx, 0);
+  ret = avfilter_link(buffersrc_ctx, 0, volume_ctx, 0);
+  if (ret >= 0)
+    ret = avfilter_link(volume_ctx, 0, format_ctx, 0);
   if (ret >= 0)
     ret = avfilter_link(format_ctx, 0, buffersink_ctx, 0);
   if (ret < 0)
@@ -1152,7 +1004,6 @@ open_filter(struct filter_ctx *filter_ctx, AVCodecContext *dec_ctx, AVCodecConte
 
   return -1;
 }
-#endif
 
 static int
 open_filters(struct encode_ctx *ctx, struct decode_ctx *src_ctx)
