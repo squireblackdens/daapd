@@ -32,14 +32,14 @@
     <div id="main_content_wrap" class="outer">
       <section id="main_content" class="inner">
         <h1>
-<a id="forked-daapd" class="anchor" href="#forked-daapd" aria-hidden="true"><span class="octicon octicon-link"></span></a>forked-daapd</h1>
+<a id="forked-daapd" class="anchor" href="#forked-daapd" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>forked-daapd</h1>
 
 <p>forked-daapd is a Linux/FreeBSD DAAP (iTunes), MPD (Music Player Daemon) and
 RSP (Roku) media server.</p>
 
 <p>It has support for AirPlay devices/speakers, Apple Remote (and compatibles),
-MPD clients, network streaming, internet radio, Spotify and LastFM. It does not
-support AirPlay video.</p>
+MPD clients, Chromecast, network streaming, internet radio, Spotify and LastFM.
+It does not support AirPlay nor Chromecast video.</p>
 
 <p>DAAP stands for Digital Audio Access Protocol, and is the protocol used
 by iTunes and friends to share/stream media libraries over the network.</p>
@@ -58,13 +58,14 @@ SoundBridge devices. See <a href="http://www.roku.com">http://www.roku.com</a>.<
 <p>forked-daapd is a complete rewrite of mt-daapd (Firefly Media Server).</p>
 
 <h2>
-<a id="contents-of-this-readme" class="anchor" href="#contents-of-this-readme" aria-hidden="true"><span class="octicon octicon-link"></span></a>Contents of this README</h2>
+<a id="contents-of-this-readme" class="anchor" href="#contents-of-this-readme" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Contents of this README</h2>
 
 <ul>
 <li><a href="#getting-started">Getting started</a></li>
 <li><a href="#supported-clients">Supported clients</a></li>
 <li><a href="#using-remote">Using Remote</a></li>
 <li><a href="#airplay-devicesspeakers">AirPlay devices/speakers</a></li>
+<li><a href="#chromecast">Chromecast</a></li>
 <li><a href="#local-audio-output">Local audio output</a></li>
 <li><a href="#MP3-network-streaming-(streaming-to-iOS)">MP3 network streaming (streaming to iOS)</a></li>
 <li><a href="#supported-formats">Supported formats</a></li>
@@ -79,7 +80,7 @@ SoundBridge devices. See <a href="http://www.roku.com">http://www.roku.com</a>.<
 </ul>
 
 <h2>
-<a id="getting-started" class="anchor" href="#getting-started" aria-hidden="true"><span class="octicon octicon-link"></span></a>Getting started</h2>
+<a id="getting-started" class="anchor" href="#getting-started" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Getting started</h2>
 
 <p>After installation (see <a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a>)
 do the following:</p>
@@ -96,7 +97,7 @@ described below</li>
 </ol>
 
 <h2>
-<a id="supported-clients" class="anchor" href="#supported-clients" aria-hidden="true"><span class="octicon octicon-link"></span></a>Supported clients</h2>
+<a id="supported-clients" class="anchor" href="#supported-clients" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Supported clients</h2>
 
 <p>forked-daapd supports these kinds of clients:</p>
 
@@ -104,6 +105,7 @@ described below</li>
 <li>DAAP clients, like iTunes or Rhythmbox</li>
 <li>Remote clients, like Apple Remote or compatibles for Android/Windows Phone</li>
 <li>AirPlay devices, like AirPort Express, Shairport and various AirPlay speakers</li>
+<li>Chromecast devices</li>
 <li>MPD clients, like mpc (see <a href="#mpd-clients">mpd-clients</a>)</li>
 <li>MP3 network stream clients, like VLC and almost any other music player</li>
 <li>RSP clients, like Roku Soundbridge</li>
@@ -224,14 +226,14 @@ probably obsolete when you read it :-)</p>
 </table>
 
 <h2>
-<a id="using-remote" class="anchor" href="#using-remote" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using Remote</h2>
+<a id="using-remote" class="anchor" href="#using-remote" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Using Remote</h2>
 
 <p>If you plan to use Remote for iPod/iPhone/iPad with forked-daapd, read the
 following sections. The pairing process described is similar for other
 controllers/remotes (e.g. Retune), but some do not require pairing.</p>
 
 <h3>
-<a id="pairing-with-remote-on-ipodiphone" class="anchor" href="#pairing-with-remote-on-ipodiphone" aria-hidden="true"><span class="octicon octicon-link"></span></a>Pairing with Remote on iPod/iPhone</h3>
+<a id="pairing-with-remote-on-ipodiphone" class="anchor" href="#pairing-with-remote-on-ipodiphone" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Pairing with Remote on iPod/iPhone</h3>
 
 <p>If you just started forked-daapd for the first time, then wait til the library
 scan completes before pairing with Remote (see <a href="#library">library</a>). Otherwise
@@ -285,7 +287,7 @@ file once the pairing process is done.</p>
 the pairing process failed. Here are some common reasons:</p>
 
 <h4>
-<a id="your-library-is-a-network-mount" class="anchor" href="#your-library-is-a-network-mount" aria-hidden="true"><span class="octicon octicon-link"></span></a>Your library is a network mount</h4>
+<a id="your-library-is-a-network-mount" class="anchor" href="#your-library-is-a-network-mount" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Your library is a network mount</h4>
 
 <p>forked-daapd does not get notified about new files on network mounts, so the
 .remote file was not detected. You will see no log file messages about the file.
@@ -293,7 +295,7 @@ Solution: Set two library paths in the config, and add the .remote file to the
 local path. See <a href="#libraries-on-network-mounts">Libraries on network mounts</a>.</p>
 
 <h4>
-<a id="you-did-not-enter-the-correct-name-or-pairing-code" class="anchor" href="#you-did-not-enter-the-correct-name-or-pairing-code" aria-hidden="true"><span class="octicon octicon-link"></span></a>You did not enter the correct name or pairing code</h4>
+<a id="you-did-not-enter-the-correct-name-or-pairing-code" class="anchor" href="#you-did-not-enter-the-correct-name-or-pairing-code" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>You did not enter the correct name or pairing code</h4>
 
 <p>You will see an error in the log about pairing failure with a HTTP response code
 that is <em>not</em> 0.
@@ -302,7 +304,7 @@ can also try the pairinghelper script located in the scripts-folder of the
 source.</p>
 
 <h4>
-<a id="no-response-from-remote-possibly-a-network-issue" class="anchor" href="#no-response-from-remote-possibly-a-network-issue" aria-hidden="true"><span class="octicon octicon-link"></span></a>No response from Remote, possibly a network issue</h4>
+<a id="no-response-from-remote-possibly-a-network-issue" class="anchor" href="#no-response-from-remote-possibly-a-network-issue" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>No response from Remote, possibly a network issue</h4>
 
 <p>If you see an error in the log with either:</p>
 
@@ -340,7 +342,7 @@ example, the correct value is Foobar. To check for network issues you can try to
 connect to address and port with telnet.</p>
 
 <h3>
-<a id="selecting-output-devices" class="anchor" href="#selecting-output-devices" aria-hidden="true"><span class="octicon octicon-link"></span></a>Selecting output devices</h3>
+<a id="selecting-output-devices" class="anchor" href="#selecting-output-devices" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Selecting output devices</h3>
 
 <p>Remote gets a list of output devices from the server; this list includes any
 and all devices on the network we know of that advertise AirPlay: AirPort
@@ -357,7 +359,7 @@ server startup, provided they appear in the 5 minutes following the startup
 and no playback has occured yet.</p>
 
 <h2>
-<a id="airplay-devicesspeakers" class="anchor" href="#airplay-devicesspeakers" aria-hidden="true"><span class="octicon octicon-link"></span></a>AirPlay devices/speakers</h2>
+<a id="airplay-devicesspeakers" class="anchor" href="#airplay-devicesspeakers" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>AirPlay devices/speakers</h2>
 
 <p>forked-daapd will discover the AirPlay devices available on your network. For
 devices that are password-protected, the device's AirPlay name and password
@@ -365,7 +367,18 @@ must be given in the configuration file. See the sample configuration file
 for the syntax.</p>
 
 <h2>
-<a id="local-audio-output" class="anchor" href="#local-audio-output" aria-hidden="true"><span class="octicon octicon-link"></span></a>Local audio output</h2>
+<a id="chromecast" class="anchor" href="#chromecast" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Chromecast</h2>
+
+<p>Chromecast support is currently experimental. It requires that forked-daapd was
+built with "--enable-chromecast".</p>
+
+<p>forked-daapd will discover Chromecast devices available on your network. There
+is no configuration to be done. This feature relies on streaming the audio in
+mp3 to your Chromecast device, which means that mp3 encoding must be supported
+by your ffmpeg/libav. See <a href="#MP3-network-streaming-(streaming-to-iOS)">MP3 network streaming</a>.</p>
+
+<h2>
+<a id="local-audio-output" class="anchor" href="#local-audio-output" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Local audio output</h2>
 
 <p>The audio section of the configuration file supports 2 parameters for the local
 audio device:</p>
@@ -378,7 +391,7 @@ OSS4.</li>
 </ul>
 
 <h2>
-<a id="mp3-network-streaming-streaming-to-ios" class="anchor" href="#mp3-network-streaming-streaming-to-ios" aria-hidden="true"><span class="octicon octicon-link"></span></a>MP3 network streaming (streaming to iOS)</h2>
+<a id="mp3-network-streaming-streaming-to-ios" class="anchor" href="#mp3-network-streaming-streaming-to-ios" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>MP3 network streaming (streaming to iOS)</h2>
 
 <p>You can listen to audio being played by forked-daapd by opening this network
 stream address in pretty much any music player:</p>
@@ -397,7 +410,7 @@ it is not available you will see a message in the log file. In Debian/Ubuntu you
 get MP3 encoding support by installing the package "libavcodec-extra".</p>
 
 <h2>
-<a id="supported-formats" class="anchor" href="#supported-formats" aria-hidden="true"><span class="octicon octicon-link"></span></a>Supported formats</h2>
+<a id="supported-formats" class="anchor" href="#supported-formats" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Supported formats</h2>
 
 <p>forked-daapd should support pretty much all media formats. It relies on libav
 (or ffmpeg) to extract metadata and decode the files on the fly when the client
@@ -419,7 +432,7 @@ added. Currently supported:</p>
 </ul>
 
 <h2>
-<a id="streaming-mpeg4" class="anchor" href="#streaming-mpeg4" aria-hidden="true"><span class="octicon octicon-link"></span></a>Streaming MPEG4</h2>
+<a id="streaming-mpeg4" class="anchor" href="#streaming-mpeg4" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Streaming MPEG4</h2>
 
 <p>Depending on the client application, you may need to optimize your MPEG4 files
 for streaming. Stream-optimized MPEG4 files have their metadata at the beginning
@@ -446,7 +459,7 @@ happily write the metadata back at the end of the file after you've modified
 them. Watch out for that.</p>
 
 <h2>
-<a id="playlists-and-internet-radio" class="anchor" href="#playlists-and-internet-radio" aria-hidden="true"><span class="octicon octicon-link"></span></a>Playlists and internet radio</h2>
+<a id="playlists-and-internet-radio" class="anchor" href="#playlists-and-internet-radio" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Playlists and internet radio</h2>
 
 <p>forked-daapd supports M3U and PLS playlists. Just drop your playlist somewhere
 in your library with an .m3u or .pls extension and it will pick it up.</p>
@@ -468,7 +481,7 @@ documented in
 <a href="https://github.com/ejurgensen/forked-daapd/blob/master/README_SMARTPL.md">README_SMARTPL.md</a>.</p>
 
 <h2>
-<a id="artwork" class="anchor" href="#artwork" aria-hidden="true"><span class="octicon octicon-link"></span></a>Artwork</h2>
+<a id="artwork" class="anchor" href="#artwork" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Artwork</h2>
 
 <p>forked-daapd has support for PNG and JPEG artwork which is either:</p>
 
@@ -505,7 +518,7 @@ file. The cache.db file can be deleted without losing the library and pairing
 informations.</p>
 
 <h2>
-<a id="library" class="anchor" href="#library" aria-hidden="true"><span class="octicon octicon-link"></span></a>Library</h2>
+<a id="library" class="anchor" href="#library" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Library</h2>
 
 <p>The library is scanned in bulk mode at startup, but the server will be available
 even while this scan is in progress. You can follow the progress of the scan in
@@ -527,7 +540,7 @@ Currently, this will not be done automatically, so you need to trigger the
 rescan as described below.</p>
 
 <h3>
-<a id="symlinks-and-pipes" class="anchor" href="#symlinks-and-pipes" aria-hidden="true"><span class="octicon octicon-link"></span></a>Symlinks and pipes</h3>
+<a id="symlinks-and-pipes" class="anchor" href="#symlinks-and-pipes" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Symlinks and pipes</h3>
 
 <p>Symlinks are supported and dereferenced. This does interact in tricky ways
 with the above monitoring and rescanning, so you've been warned. Changes to
@@ -548,7 +561,7 @@ forward the audio to one or more AirPlay speakers.</p>
 album". The name of the pipe will be used as the track title.</p>
 
 <h3>
-<a id="libraries-on-network-mounts" class="anchor" href="#libraries-on-network-mounts" aria-hidden="true"><span class="octicon octicon-link"></span></a>Libraries on network mounts</h3>
+<a id="libraries-on-network-mounts" class="anchor" href="#libraries-on-network-mounts" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Libraries on network mounts</h3>
 
 <p>Most network filesharing protocols do not offer notifications when the library
 is changed. So that means forked-daapd cannot update its database in real time.
@@ -569,7 +582,7 @@ configuration item in forked-daapd.conf:</p>
 perform a bulk scan similar to the startup scan.</p>
 
 <h3>
-<a id="troubleshooting-library-issues" class="anchor" href="#troubleshooting-library-issues" aria-hidden="true"><span class="octicon octicon-link"></span></a>Troubleshooting library issues</h3>
+<a id="troubleshooting-library-issues" class="anchor" href="#troubleshooting-library-issues" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Troubleshooting library issues</h3>
 
 <p>If you place a file with the filename ending .full-rescan in your library,
 you can trigger a full rescan of your library. This will clear all music and
@@ -578,7 +591,7 @@ and speaker information will be kept. Only use this for troubleshooting, it is
 not necessary during normal operation.</p>
 
 <h2>
-<a id="command-line-and-web-interface" class="anchor" href="#command-line-and-web-interface" aria-hidden="true"><span class="octicon octicon-link"></span></a>Command line and web interface</h2>
+<a id="command-line-and-web-interface" class="anchor" href="#command-line-and-web-interface" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Command line and web interface</h2>
 
 <p>forked-daapd is meant to be used with the clients mentioned above, so it does
 not have a command line interface nor does it have a web interface. You can,
@@ -605,7 +618,7 @@ curl "http://localhost:3689/logout?session-id=50"
 </code></pre>
 
 <h2>
-<a id="spotify" class="anchor" href="#spotify" aria-hidden="true"><span class="octicon octicon-link"></span></a>Spotify</h2>
+<a id="spotify" class="anchor" href="#spotify" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Spotify</h2>
 
 <p>forked-daapd has <em>some</em> support for Spotify. It must be compiled with the
 <code>--enable-spotify option</code> (see
@@ -648,7 +661,7 @@ forked-daapd do the playback - so that means you can't stream from forked-daapd
 to iTunes.</p>
 
 <h2>
-<a id="lastfm" class="anchor" href="#lastfm" aria-hidden="true"><span class="octicon octicon-link"></span></a>LastFM</h2>
+<a id="lastfm" class="anchor" href="#lastfm" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>LastFM</h2>
 
 <p>If forked-daapd was built with LastFM scrobbling enabled (see the
 <a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a> file)
@@ -666,7 +679,7 @@ session key. The session key does not expire.</p>
 library.</p>
 
 <h2>
-<a id="mpd-clients" class="anchor" href="#mpd-clients" aria-hidden="true"><span class="octicon octicon-link"></span></a>MPD clients</h2>
+<a id="mpd-clients" class="anchor" href="#mpd-clients" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>MPD clients</h2>
 
 <p>If forked-daapd was build with support for the <a href="http://musicpd.org/">Music Player Deamon</a> 
 protocol (see the <a href="https://github.com/ejurgensen/forked-daapd/blob/master/INSTALL">INSTALL</a>
