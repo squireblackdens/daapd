@@ -56,10 +56,10 @@ by iTunes and friends to share/stream media libraries over the network.</p>
 <li><a href="#using-remote">Using Remote</a></li>
 <li><a href="#airplay-devicesspeakers">AirPlay devices/speakers</a></li>
 <li><a href="#chromecast">Chromecast</a></li>
-<li><a href="#local-audio-output">Local audio output</a></li>
-<li><a href="#MP3-network-streaming-(streaming-to-iOS)">MP3 network streaming (streaming to iOS)</a></li>
+<li><a href="#local-audio-through-alsa">Local audio through ALSA</a></li>
+<li><a href="#local-audio-bluetooth-and-more-through-pulseaudio">Local audio, Bluetooth and more through Pulseaudio</a></li>
+<li><a href="#mp3-network-streaming-streaming-to-ios">MP3 network streaming (streaming to iOS)</a></li>
 <li><a href="#supported-formats">Supported formats</a></li>
-<li><a href="#streaming-mpeg4">Streaming MPEG4</a></li>
 <li><a href="#playlists-and-internet-radio">Playlists and internet radio</a></li>
 <li><a href="#artwork">Artwork</a></li>
 <li><a href="#library">Library</a></li>
@@ -341,13 +341,12 @@ and all devices on the network we know of that advertise AirPlay: AirPort
 Express, Apple TV, ... It also includes the local audio output, that is, the
 sound card on the server (even if there is no soundcard).</p>
 
-<p>By default, if no output is selected when playback starts, the local output
-device will be used. If that fails it will try to stream to any available
-AirPlay speaker.</p>
+<p>If no output is selected when playback starts, forked-daapd will try to
+autoselect a device.</p>
 
 <p>forked-daapd remembers your selection and the individual volume for each
-output device; selected devices will be automatically re-selected at the next
-server startup, provided no playback has occured yet.</p>
+output device; selected devices will be automatically re-selected, except if
+they return online during playback.</p>
 
 <h2>
 <a id="airplay-devicesspeakers" class="anchor" href="#airplay-devicesspeakers" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>AirPlay devices/speakers</h2>
@@ -360,20 +359,32 @@ for the syntax.</p>
 <h2>
 <a id="chromecast" class="anchor" href="#chromecast" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Chromecast</h2>
 
-<p>Chromecast support is currently experimental. It requires that forked-daapd was
-built with "--enable-chromecast".</p>
-
 <p>forked-daapd will discover Chromecast devices available on your network. There
 is no configuration to be done. This feature relies on streaming the audio in
 mp3 to your Chromecast device, which means that mp3 encoding must be supported
-by your ffmpeg/libav. See <a href="#MP3-network-streaming-(streaming-to-iOS)">MP3 network streaming</a>.</p>
+by your ffmpeg/libav. See <a href="#mp3-network-streaming-streaming-to-ios">MP3 network streaming</a>.</p>
+
+<p>It is also required that forked-daapd is built with "--enable-chromecast".</p>
 
 <h2>
-<a id="local-audio-output" class="anchor" href="#local-audio-output" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Local audio output</h2>
+<a id="local-audio-through-alsa" class="anchor" href="#local-audio-through-alsa" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Local audio through ALSA</h2>
 
-<p>forked-daapd supports local audio output through ALSA. The server will try to
-syncronize playback with AirPlay. You can adjust the syncronization in the
-config file.</p>
+<p>In the config file, you can select ALSA for local audio. This is the default.</p>
+
+<p>When using ALSA, the server will try to syncronize playback with AirPlay. You
+can adjust the syncronization in the config file.</p>
+
+<h2>
+<a id="local-audio-bluetooth-and-more-through-pulseaudio" class="anchor" href="#local-audio-bluetooth-and-more-through-pulseaudio" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Local audio, Bluetooth and more through Pulseaudio</h2>
+
+<p>In the config file, you can select Pulseaudio for local audio. In addition to
+local audio, Pulseaudio also supports an array of other targets, e.g. Bluetooth
+or DLNA. However, Pulseaudio does require some setup, so here is a separate page
+with some help on that: <a href="https://github.com/ejurgensen/forked-daapd/blob/master/README_PULSE.md">README_PULSE.md</a></p>
+
+<p>Note that if you select Pulseaudio the "card" setting in the config file has
+no effect. Instead all soundcards detected by Pulseaudio will be listed as
+speakers by forked-daapd.</p>
 
 <h2>
 <a id="mp3-network-streaming-streaming-to-ios" class="anchor" href="#mp3-network-streaming-streaming-to-ios" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>MP3 network streaming (streaming to iOS)</h2>
@@ -414,6 +425,7 @@ added. Currently supported:</p>
 <li>WMA: wma (WMA Pro), wmal (WMA Lossless), wmav (WMA video)</li>
 <li>AIFF: aif</li>
 <li>WAV: wav</li>
+<li>Monkey's audio: ape</li>
 </ul>
 
 <h2>
@@ -610,6 +622,9 @@ should not need to restart forked-daapd to syncronize with Spotify.</p>
 will not store your password, but will still be able to log you in automatically
 afterwards, because libspotify saves a login token. You can configure the
 location of your Spotify user data in the configuration file.</p>
+
+<p>To permanently logout and remove credentials, delete the contents of
+<code>/var/cache/forked-daapd/libspotify</code> (while forked-daapd is stopped).</p>
 
 <p>Limitations: You will only be able to play tracks from your Spotify playlists,
 so you can't search and listen to music from the rest of the Spotify catalogue.
