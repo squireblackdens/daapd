@@ -52,6 +52,8 @@
 #include "player.h"
 #include "rtp_common.h"
 #include "outputs.h"
+#include "db.h"
+#include "artwork.h"
 
 #ifdef HAVE_PROTOBUF_OLD
 #include "cast_channel.v0.pb-c.h"
@@ -110,6 +112,9 @@
 // which can be used for delayed transmission (and retransmission)
 #define CAST_PACKET_BUFFER_SIZE 200
 
+// Max number of RTP packets for one artwork image
+#define CAST_PACKET_ARTWORK_SIZE 200
+
 // Max (absolute) value the user is allowed to set offset_ms in the config file
 #define CAST_OFFSET_MAX 1000
 
@@ -120,11 +125,14 @@
 // See cast_packet_header_make()
 #define CAST_HEADER_SIZE 11
 
-// These limits are defined in components/mirroring/service/session.cc
-#define CAST_SSRC_AUDIO_MIN = 1
-#define CAST_SSRC_AUDIO_MAX = 500000
-#define CAST_SSRC_VIDEO_MIN = 500001
-#define CAST_SSRC_VIDEO_MAX = 1000000
+// These limits are from components/mirroring/service/session.cc
+#define CAST_SSRC_AUDIO_MIN 1
+#define CAST_SSRC_AUDIO_MAX 500000
+#define CAST_SSRC_VIDEO_MIN 500001
+#define CAST_SSRC_VIDEO_MAX 1000000
+
+#define CAST_RTP_PAYLOADTYPE_AUDIO 127
+#define CAST_RTP_PAYLOADTYPE_VIDEO 96
 
 /* Notes
  * OFFER/ANSWER <-webrtc
@@ -192,6 +200,8 @@ struct cast_master_session
   uint8_t *rawbuf;
   size_t rawbuf_size;
   int samples_per_packet;
+
+  struct rtp_session *rtp_artwork;
 };
 
 struct cast_session
@@ -305,6 +315,11 @@ struct cast_msg_payload
   unsigned short udp_port;
 };
 
+struct cast_metadata
+{
+  struct evbuffer *artwork;
+};
+
 // Array of the cast messages that we use. Must be in sync with cast_msg_types.
 struct cast_msg_basic cast_msg[] =
 {
@@ -387,9 +402,11 @@ struct cast_msg_basic cast_msg[] =
     // codecName can be aac or opus, ssrc should be random
     // We don't set 'aesKey' and 'aesIvMask'
     // sampleRate seems to be ignored
+    // TODO calculate bitrate, result should be 102000, ref. Chromium
     // storeTime unknown meaning - perhaps size of buffer?
     // targetDelay - should be RTP delay in ms, but doesn't seem to change anything?
-    .payload = "{'type':'OFFER','seqNum':%u,'offer':{'castMode':'mirroring','supportedStreams':[{'index':0,'type':'audio_source','codecName':'opus','rtpProfile':'cast','rtpPayloadType':127,'ssrc':%" PRIu32 ",'storeTime':400,'targetDelay':400,'bitRate':128000,'sampleRate':48000,'timeBase':'1/48000','channels':2,'receiverRtcpEventLog':false},{'codecName':'vp8','index':1,'maxBitRate':5000000,'maxFrameRate':'30000/1000','receiverRtcpEventLog':false,'renderMode':'video','resolutions':[{'height':900,'width':1600}],'rtpPayloadType':96,'rtpProfile':'cast','ssrc':999999,'targetDelay':400,'timeBase':'1/90000','type':'video_source'}]}}",
+    // vp8 timebase - see rfc7741
+    .payload = "{'type':'OFFER','seqNum':%u,'offer':{'castMode':'mirroring','supportedStreams':[{'index':0,'type':'audio_source','codecName':'opus','rtpProfile':'cast','rtpPayloadType':" NTOSTR(CAST_RTP_PAYLOADTYPE_AUDIO) ",'ssrc':%" PRIu32 ",'storeTime':400,'targetDelay':400,'bitRate':128000,'sampleRate':" NTOSTR(CAST_QUALITY_SAMPLE_RATE_DEFAULT) ",'timeBase':'1/" NTOSTR(CAST_QUALITY_SAMPLE_RATE_DEFAULT) "','channels':" NTOSTR(CAST_QUALITY_CHANNELS_DEFAULT) ",'receiverRtcpEventLog':false},{'codecName':'vp8','index':1,'maxBitRate':5000000,'maxFrameRate':'30000/1000','receiverRtcpEventLog':false,'renderMode':'video','resolutions':[{'height':900,'width':1600}],'rtpPayloadType':" NTOSTR(CAST_RTP_PAYLOADTYPE_VIDEO) ",'rtpProfile':'cast','ssrc':999999,'targetDelay':400,'timeBase':'1/90000','type':'video_source'}]}}",
     .flags = USE_TRANSPORT_ID | USE_REQUEST_ID,
   },
   {
@@ -552,6 +569,18 @@ cast_disconnect(int fd)
   close(fd);
 }
 
+static void
+cast_metadata_free(struct cast_metadata *cmd)
+{
+  if (!cmd)
+    return;
+
+  if (cmd->artwork)
+    evbuffer_free(cmd->artwork);
+
+  free(cmd);
+}
+
 static char *
 squote_to_dquote(char *buf)
 {
@@ -574,6 +603,7 @@ master_session_free(struct cast_master_session *cms)
 
   outputs_quality_unsubscribe(&cms->rtp_session->quality);
   rtp_session_free(cms->rtp_session);
+  rtp_session_free(cms->rtp_artwork);
   evbuffer_free(cms->evbuf);
   free(cms->rawbuf);
   free(cms);
@@ -1469,16 +1499,6 @@ cast_device_cb(const char *name, const char *type, const char *domain, const cha
 }
 
 
-/* --------------------------------- METADATA ------------------------------- */
-
-/*
-static void
-metadata_send(struct cast_session *cs)
-{
-  cast_msg_send(cs, PRESENTATION, cast_cb_presentation);
-}
-*/
-
 /* --------------------- SESSION CONSTRUCTION AND SHUTDOWN ------------------ */
 
 static struct cast_master_session *
@@ -1501,14 +1521,7 @@ master_session_make(struct media_quality *quality)
 
   CHECK_NULL(L_CAST, cms = calloc(1, sizeof(struct cast_master_session)));
 
-  cms->rtp_session = rtp_session_new(quality, CAST_PACKET_BUFFER_SIZE, 0);
-  if (!cms->rtp_session)
-    {
-      outputs_quality_unsubscribe(quality);
-      free(cms);
-      return NULL;
-    }
-
+  CHECK_NULL(L_CAST, cms->rtp_session = rtp_session_new(quality, CAST_PACKET_BUFFER_SIZE, 0));
   // Change the SSRC to be in the interval [CAST_SSRC_AUDIO_MIN, CAST_SSRC_AUDIO_MAX]
   cms->rtp_session->ssrc_id = ((cms->rtp_session->ssrc_id + CAST_SSRC_AUDIO_MIN) % CAST_SSRC_AUDIO_MAX) + CAST_SSRC_AUDIO_MIN;
 
@@ -1518,6 +1531,11 @@ master_session_make(struct media_quality *quality)
 
   CHECK_NULL(L_CAST, cms->rawbuf = malloc(cms->rawbuf_size));
   CHECK_NULL(L_CAST, cms->evbuf = evbuffer_new());
+
+  CHECK_NULL(L_CAST, cms->rtp_artwork = rtp_session_new(NULL, CAST_PACKET_ARTWORK_SIZE, 0));
+  // Change the SSRC to be in the interval [CAST_SSRC_VIDEO_MIN, CAST_SSRC_VIDEO_MAX]
+//  cms->rtp_artwork->ssrc_id = ((cms->rtp_artwork->ssrc_id + CAST_SSRC_VIDEO_MIN) % CAST_SSRC_VIDEO_MAX) + CAST_SSRC_VIDEO_MIN;
+  cms->rtp_artwork->ssrc_id = 999999;
 
   cast_master_session = cms;
 
@@ -1839,12 +1857,10 @@ packet_send(struct cast_session *cs, struct rtp_packet *pkt)
   if (ret < 0)
     {
       DPRINTF(E_LOG, L_CAST, "Send error for '%s': %s\n", cs->devname, strerror(errno));
-      return -1;
     }
   else if (ret != pkt->data_len)
     {
       DPRINTF(E_WARN, L_CAST, "Partial send (%d) for '%s'\n", ret, cs->devname);
-      return 0;
     }
 
 /*  DPRINTF(E_DBG, L_CAST, "RTP PACKET seqnum %u, rtptime %u, payload 0x%x, pktbuf_s %zu\n",
@@ -1854,7 +1870,7 @@ packet_send(struct cast_session *cs, struct rtp_packet *pkt)
     cs->master_session->rtp_session->pktbuf_len
     );
 */
-  return 0;
+  return ret;
 }
 
 static inline int
@@ -1893,8 +1909,8 @@ packet_make(struct cast_master_session *cms)
   if (len < 0)
     return -1;
 
-  // Chromium uses a RTP payload type that is 0xff
-  pkt = rtp_packet_next(cms->rtp_session, CAST_HEADER_SIZE + len, cms->samples_per_packet, 0xff);
+  // For audio it is always a complete frame, so marker bit is 1 (like Chromium does)
+  pkt = rtp_packet_next(cms->rtp_session, CAST_HEADER_SIZE + len, cms->samples_per_packet, CAST_RTP_PAYLOADTYPE_AUDIO, 1);
 
   // Creates Cast header + adds payload
   ret = packet_prepare(pkt, cast_encoded_data);
@@ -2150,26 +2166,77 @@ cast_write(struct output_buffer *obuf)
     }
 }
 
-/* Doesn't work, but left here so it can be fixed
+// *** Thread: worker ***
+static void *
+cast_metadata_prepare(struct output_metadata *metadata)
+{
+  struct db_queue_item *queue_item;
+  struct cast_metadata *cmd;
+  int ret;
+
+  if (!cast_sessions)
+    return NULL;
+
+  queue_item = db_queue_fetch_byitemid(metadata->item_id);
+  if (!queue_item)
+    {
+      DPRINTF(E_LOG, L_CAST, "Could not fetch queue item\n");
+      return NULL;
+    }
+
+  CHECK_NULL(L_CAST, cmd = calloc(1, sizeof(struct cast_metadata)));
+  CHECK_NULL(L_CAST, cmd->artwork = evbuffer_new());
+
+  ret = artwork_get_item2(cmd->artwork, queue_item->file_id, ART_DEFAULT_WIDTH, ART_DEFAULT_HEIGHT, ART_FMT_VP8);
+  if (ret < 0)
+    {
+      DPRINTF(E_INFO, L_CAST, "Failed to retrieve artwork for file '%s'; no artwork will be sent\n", queue_item->path);
+      cast_metadata_free(cmd);
+      return NULL;
+    }
+
+  return cmd;
+}
+
 static void
 cast_metadata_send(struct output_metadata *metadata)
 {
+  struct cast_metadata *cmd = metadata->priv;
   struct cast_session *cs;
   struct cast_session *next;
+
+  struct rtp_packet *pkt;
+  size_t artwork_size;
+  int ret;
+
+  artwork_size = evbuffer_get_length(cmd->artwork);
+  if (artwork_size == 0)
+    return;
 
   for (cs = cast_sessions; cs; cs = next)
     {
       next = cs->next;
 
-      if (cs->state != CAST_STATE_MEDIA_CONNECTED)
+      if (! (cs->state & CAST_STATE_MEDIA_CONNECTED))
 	continue;
 
-      metadata_send(cs);
+      // Marker bit is 1 because we send a complete frame
+      pkt = rtp_packet_next(cs->master_session->rtp_artwork, CAST_HEADER_SIZE + artwork_size, 1, CAST_RTP_PAYLOADTYPE_VIDEO, 1);
+      if (!pkt)
+	continue;
+
+      ret = packet_prepare(pkt, cmd->artwork);
+      if (ret < 0)
+	continue;
+
+      packet_send(cs, pkt);
+// TODO Handle partial send
+
+      rtp_packet_commit(cs->master_session->rtp_artwork, pkt);
     }
 
-  // TODO free the metadata
+  cast_metadata_free(cmd);
 }
-*/
 
 static int
 cast_init(void)
