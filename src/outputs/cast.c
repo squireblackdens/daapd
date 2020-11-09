@@ -257,6 +257,7 @@ struct cast_session
 
   int udp_fd;
   unsigned short udp_port;
+  struct event *rtcp_ev;
 
   struct cast_session *next;
 };
@@ -569,7 +570,7 @@ cast_disconnect(int fd)
   close(fd);
 }
 
-static void
+/*static void
 cast_metadata_free(struct cast_metadata *cmd)
 {
   if (!cmd)
@@ -580,6 +581,7 @@ cast_metadata_free(struct cast_metadata *cmd)
 
   free(cmd);
 }
+*/
 
 static char *
 squote_to_dquote(char *buf)
@@ -640,6 +642,8 @@ cast_session_free(struct cast_session *cs)
 
   if (cs->server_fd >= 0)
     cast_disconnect(cs->server_fd);
+  if (cs->rtcp_ev)
+    event_free(cs->rtcp_ev);
   if (cs->udp_fd >= 0)
     cast_disconnect(cs->udp_fd);
 
@@ -1011,6 +1015,157 @@ cast_status(struct cast_session *cs)
   cs->callback_id = -1;
 }
 
+
+/* Process a CAST feedback conen, which looks like this:
+
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                            "CAST"                             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| last frame id |  lost fields  |        target delay ms        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                +
+                          x lost fields
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|    frame id   |           packet id           |    bitmask    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                +
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                            "CST2"                             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|feedback count |  recv fields  |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                +
+                          x recv fields
++-+-+-+-+-+-+-+-+
+|    bitmask    |
++-+-+-+-+-+-+-+-+
+*/
+
+struct cast_rtcp_packet_feedback
+{
+  uint8_t last_frame_id;
+  uint8_t lost_fields;
+  uint16_t target_delay_ms;
+  uint8_t count;
+  uint8_t recv_fields;
+};
+
+int g_ack = 1;
+
+static void
+feedback_packet_process(struct cast_session *cs, uint8_t *data, size_t len)
+{
+  struct cast_rtcp_packet_feedback feedback;
+  size_t require_len;
+  uint8_t frame_id;
+  uint16_t packet_id;
+  uint8_t bitmask;
+  uint8_t *cst2_data;
+  int i;
+
+  // Check that we have enough data to read the header and calc length
+  require_len = 8;
+  if (len < require_len)
+    return;
+
+  if (memcmp(data, "CAST", 4) != 0)
+    return; // Not a CAST packet, maybe we should log?
+
+  memset(&feedback, 0, sizeof(struct cast_rtcp_packet_feedback));
+
+  feedback.last_frame_id = data[4];
+  feedback.lost_fields = data[5];
+  memcpy(&feedback.target_delay_ms, data + 6, 2);
+  feedback.target_delay_ms = be16toh(feedback.target_delay_ms);
+
+  // Check len again, now we can calculate required size for next step
+  require_len += 4 * feedback.lost_fields;
+  if (len < require_len)
+    return;
+
+  for (i = 0; i < feedback.lost_fields; i++)
+    {
+      frame_id = data[8 + (4 * i)];
+      memcpy(&packet_id, data + 9 + (4 * i), 2);
+      packet_id = be16toh(packet_id);
+      bitmask = data[11 + (4 * i)];
+
+      DPRINTF(E_DBG, L_CAST, "Lost RTCP frame_id %" PRIu8", packet_id %" PRIu16 ", bitmask %02x\n", frame_id, packet_id, bitmask);
+    }
+
+  // Check len again, now check if we have enough data to read the CST2 header
+  require_len += 6;
+  if (len < require_len)
+    return;
+
+  cst2_data = data + 8 + 4 * feedback.lost_fields;
+  if (memcmp(cst2_data, "CST2", 4) != 0)
+    return;
+
+  feedback.count = cst2_data[4];
+  feedback.recv_fields = cst2_data[5];
+
+  require_len += feedback.recv_fields;
+  if (len < require_len)
+    return;
+
+  for (i = 0; i < feedback.recv_fields; i++)
+    {
+      bitmask = cst2_data[6 + i];
+
+      DPRINTF(E_DBG, L_CAST, "Receive RTCP i %d/%" PRIu8 ", count %" PRIu8 ", bitmask %02x\n", i, feedback.recv_fields, feedback.count, bitmask);
+    }
+
+  // TODO read recv bitmask fields
+  g_ack++;
+
+}
+
+// Process an extended report RTCP packet type (PT=207)
+static void
+xr_packet_process(struct cast_session *cs, uint8_t *data, size_t len)
+{
+  struct rtcp_packet xrpkt;
+  int ret;
+
+  // The CAST payload is an RTCP packet with packet type 206
+  ret = rtcp_packet_parse(&xrpkt, data, len);
+  if (ret < 0)
+    return;
+
+  if (xrpkt.packet_type == RTCP_PACKET_PSFB && xrpkt.psfb.message_type == 15)
+    feedback_packet_process(cs, xrpkt.psfb.fci, xrpkt.psfb.fci_len);
+/*  else if (xrpkt.packet_type == CAST_RTCP_PT_FEEDBACK && xrpkt.ic == 1)
+    picturelost_packet_process(&xrpkt);
+  else if (xrpkt.packet_type == CAST_RTCP_PT_RECVREPORT)
+    recvreport_packet_process(&xrpkt);*/
+}
+
+static void
+cast_rtcp_cb(int fd, short what, void *arg)
+{
+  struct cast_session *cs = arg;
+  struct rtcp_packet pkt;
+  ssize_t got;
+  int ret;
+  uint8_t buf[512];
+
+  got = recv(fd, buf, sizeof(buf), 0);
+  if (got == sizeof(buf))
+    return; // Longer than expected, give up
+
+  ret = rtcp_packet_parse(&pkt, buf, got);
+  if (ret < 0)
+    return;
+
+  if (pkt.packet_type == RTCP_PACKET_XR)
+    xr_packet_process(cs, pkt.payload, pkt.payload_len);
+/*  if (pkt.packet_type == RTCP_PACKET_APP)
+    app_packet_process(&pkt);
+*/
+//  DPRINTF(E_LOG, L_CAST, "RECV %zd, %02x %02x %02x %02x\n", got, buf[0], buf[1], buf[2], buf[3]);
+}
+
 /* cast_cb_stop*: Callback chain for shutting down a session */
 static void
 cast_cb_stop(struct cast_session *cs, struct cast_msg_payload *payload)
@@ -1083,6 +1238,16 @@ cast_cb_startup_offer(struct cast_session *cs, struct cast_msg_payload *payload)
   cs->udp_fd = cast_connect(cs->address, cs->udp_port, cs->family, SOCK_DGRAM);
   if (cs->udp_fd < 0)
     goto error;
+
+  cs->rtcp_ev = event_new(evbase_player, cs->udp_fd, EV_READ | EV_PERSIST, cast_rtcp_cb, cs);
+  if (!cs->rtcp_ev)
+    {
+      DPRINTF(E_LOG, L_CAST, "Out of memory for UDP read event\n");
+      goto error;
+    }
+
+  event_add(cs->rtcp_ev, NULL);
+
 
   ret = cast_msg_send(cs, SET_VOLUME, cast_cb_startup_volume);
   if (ret < 0)
@@ -1880,8 +2045,12 @@ packets_send(struct cast_session *cs, struct rtp_session *rtp_session)
   int ret;
 
   // Note that the loop must work even though seqnum wraps around, so we use !=, not <
-  for (; cs->seqnum_next != rtp_session->seqnum; cs->seqnum_next++)
+  for (; cs->seqnum_next != rtp_session->seqnum && g_ack > 0; cs->seqnum_next++)
     {
+      g_ack--;
+
+	  DPRINTF(E_WARN, L_CAST, "SENDING %" PRIu16 "\n", cs->seqnum_next);
+
       pkt = rtp_packet_get(rtp_session, cs->seqnum_next);
       if (!pkt)
 	{
@@ -2166,6 +2335,7 @@ cast_write(struct output_buffer *obuf)
     }
 }
 
+/*
 // *** Thread: worker ***
 static void *
 cast_metadata_prepare(struct output_metadata *metadata)
@@ -2237,6 +2407,7 @@ cast_metadata_send(struct output_metadata *metadata)
 
   cast_metadata_free(cmd);
 }
+*/
 
 static int
 cast_init(void)
